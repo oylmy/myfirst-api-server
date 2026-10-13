@@ -33,11 +33,9 @@ pipeline {
 
     stage('Build with Maven') {
       steps {
-        dir('01.spring-backend-v1.0') {
-          echo 'Build with Maven'
-          sh 'mvn clean package -DskipTests'
-          sh 'ls -al target'
-        }
+        echo 'Build with Maven'
+        sh 'mvn clean package -DskipTests'
+        sh 'ls -al'
       }
     }
 
@@ -60,10 +58,7 @@ pipeline {
             echo "$REG_PASS" | docker login -u "$REG_USER" --password-stdin "$REG_HOST"
 
             # 2. 빌드 + 푸시 (buildx build --push는 별도 push 단계 없이 한 번에 수행)
-            docker buildx build --platform "linux/amd64" \
-              -t "${IMAGE_REF}" \
-              --push \
-              ./01.spring-backend-v1.0
+            docker buildx build --platform "linux/amd64" -t "${IMAGE_REF}" --push .
 
             # 3. 정리
             docker rmi "${IMAGE_REF}" || true
@@ -73,13 +68,13 @@ pipeline {
       }
     }
 
-    // kustomize/overlays/dev 이미지 태그 업데이트 (git에 올라간 01.spring-backend-v1.0을 clone한 워크스페이스 기준) ───────────────
+    // kustomize/overlays/dev 이미지 태그 업데이트 (git에 올라간 00.spring-backend-v1.0을 clone한 워크스페이스 기준) ───────────────
     stage('Update K8s Manifests') {
       steps {
         sh '''
           set -eux
-          test -d ./01.spring-backend-v1.0/kustomize/overlays/dev
-          cd ./01.spring-backend-v1.0/kustomize/overlays/dev
+          test -d ./kustomize/overlays/dev
+          cd ./kustomize/overlays/dev
 
           FINAL_IMAGE_TAG="${IMAGE_TAG}-${BUILD_NUMBER}"
           IMAGE_BASE="${IMAGE_REGISTRY_URL}/${IMAGE_REGISTRY_PROJECT}/${IMAGE_NAME}"
@@ -112,7 +107,7 @@ pipeline {
           # ===== DEBUG:END =====
 
           echo "=== kustomize build 결과 적용 ==="
-          kustomize build ./01.spring-backend-v1.0/kustomize/overlays/dev | kubectl apply -n "${K8S_NAMESPACE}" -f -
+          kustomize build ./kustomize/overlays/dev | kubectl apply -n "${K8S_NAMESPACE}" -f -
 
           echo "=== 배포 롤아웃 대기 ==="
           kubectl rollout status deployment/"${DEPLOYMENT_NAME}" \
